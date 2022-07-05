@@ -8,8 +8,6 @@ import torch.nn.functional as F
 import torch.optim as optim
 from torch.optim.lr_scheduler import ExponentialLR
 
-from scipy.io import wavfile
-import librosa
 from tqdm import tqdm
 
 import utils
@@ -18,13 +16,13 @@ from models.layers.istft import ISTFT
 from se_dataset import AudioDataset
 from torch.utils.data import DataLoader
 
-
 parser = argparse.ArgumentParser()
-parser.add_argument('--model_dir', default='experiments/base_model', help="Directory containing params.json")
+parser.add_argument('--model_dir', default='exp/unet16.json', help="Directory containing params.json")
 parser.add_argument('--restore_file', default=None, help="Optional, name of the file in --model_dir containing weights to reload before training")  # 'best' or 'train'
 parser.add_argument('--batch_size', default=32, type=int, help='train batch size')
 parser.add_argument('--num_epochs', default=100, type=int, help='train epochs number')
 args = parser.parse_args()
+torch.cuda.set_device(1)
 
 n_fft, hop_length = 400, 160
 window = torch.hann_window(n_fft).cuda()
@@ -50,21 +48,12 @@ def wSDRLoss(mixed, clean, clean_est, eps=2e-7):
     wSDR = a * mSDRLoss(clean, clean_est) + (1 - a) * mSDRLoss(noise, noise_est)
     return torch.mean(wSDR)
 
-# TODO - loader clean speech tempo perturbed as input
-# TODO - loader clean speech volume pertubed as input
-# TODO - option for (tempo/volume/tempo+volume)
-# TODO - loader noise sound as second input
-# TODO - loader reverb effect as second input
-# TODO - option for (noise/reverb/noise+reverb)
 
 def main():
-    json_path = os.path.join(args.model_dir)
-    params = utils.Params(json_path)
 
+    params = utils.Params(args.model_dir)
+    losses=[]
     net = Unet(params.model).cuda()
-    # TODO - check exists
-    #checkpoint = torch.load('./final.pth.tar')
-    #net.load_state_dict(checkpoint)
 
     train_dataset = AudioDataset(data_type='train')
     test_dataset = AudioDataset(data_type='val')
@@ -83,26 +72,28 @@ def main():
     for epoch in range(args.num_epochs):
         train_bar = tqdm(train_data_loader)
         for input in train_bar:
-            train_mixed, train_clean, seq_len = map(lambda x: x.cuda(), input)
-            mixed = stft(train_mixed).unsqueeze(dim=1)
-            real, imag = mixed[..., 0], mixed[..., 1]
+            z_cmp, rf, seq_len = map(lambda x: x.cuda(), input)
+
+            mixed = stft(z_cmp).unsqueeze(dim=1)
+            real, imag = z_cmp[..., 0], z_cmp[..., 1]
             out_real, out_imag = net(real, imag)
             out_real, out_imag = torch.squeeze(out_real, 1), torch.squeeze(out_imag, 1)
-            out_audio = istft(out_real, out_imag, train_mixed.size(1))
-            out_audio = torch.squeeze(out_audio, dim=1)
+            rf_predicted = istft(out_real, out_imag, z_cmp.size(1))
+            rf_predicted = torch.squeeze(rf_predicted, dim=1)
             for i, l in enumerate(seq_len):
-                out_audio[i, l:] = 0
-            librosa.output.write_wav('mixed.wav', train_mixed[0].cpu().data.numpy()[:seq_len[0].cpu().data.numpy()], 16000)
-            librosa.output.write_wav('clean.wav', train_clean[0].cpu().data.numpy()[:seq_len[0].cpu().data.numpy()], 16000)
-            librosa.output.write_wav('out.wav', out_audio[0].cpu().data.numpy()[:seq_len[0].cpu().data.numpy()], 16000)
-            loss = wSDRLoss(train_mixed, train_clean, out_audio)
-            print(epoch, loss)
+                rf_predicted[i, l:] = 0
+
+            loss = wSDRLoss(z_cmp, rf, rf_predicted)
+            losses.append(loss.numpy()[0])
             optimizer.zero_grad()
             loss.backward()
 
             optimizer.step()
         scheduler.step()
     torch.save(net.state_dict(), './final.pth.tar')
+
+    print( losses )
+
 
 if __name__ == '__main__':
     main()

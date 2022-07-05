@@ -46,7 +46,7 @@ def load_data(dataset):
 
     return dataset
 
-class AudioDataset(data.Dataset):
+class RfDataset(data.Dataset):
     """
     Audio sample reader.
     """
