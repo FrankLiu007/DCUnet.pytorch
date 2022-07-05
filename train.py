@@ -1,20 +1,19 @@
 import argparse
-import os
 
-import numpy as np
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
+
 import torch.optim as optim
 from torch.optim.lr_scheduler import ExponentialLR
 
 from tqdm import tqdm
+import pickle
 
 import utils
 from models.unet import Unet
 from models.layers.istft import ISTFT
-from se_dataset import AudioDataset
-from torch.utils.data import DataLoader
+from se_dataset import RfDataset
+
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--model_dir', default='exp/unet16.json', help="Directory containing params.json")
@@ -24,12 +23,12 @@ parser.add_argument('--num_epochs', default=100, type=int, help='train epochs nu
 args = parser.parse_args()
 torch.cuda.set_device(1)
 
-n_fft, hop_length = 400, 160
+n_fft, hop_length = 512, 160
 window = torch.hann_window(n_fft).cuda()
 stft = lambda x: torch.stft(x, n_fft, hop_length, window=window)
 istft = ISTFT(n_fft, hop_length, window='hanning').cuda()
 
-def wSDRLoss(mixed, clean, clean_est, eps=2e-7):
+def wSDRLoss(z_cmp, rf, rf_predicted, eps=2e-7):
     # Used on signal level(time-domain). Backprop-able istft should be used.
     # Batched audio inputs shape (N x T) required.
     bsum = lambda x: torch.sum(x, dim=1) # Batch preserving sum for convenience.
@@ -41,59 +40,137 @@ def wSDRLoss(mixed, clean, clean_est, eps=2e-7):
         energies = torch.norm(orig, p=2, dim=1) * torch.norm(est, p=2, dim=1)
         return -(correlation / (energies + eps))
 
-    noise = mixed - clean
-    noise_est = mixed - clean_est
+    noise = z_cmp - rf
+    noise_est = z_cmp - rf_predicted
 
-    a = bsum(clean**2) / (bsum(clean**2) + bsum(noise**2) + eps)
-    wSDR = a * mSDRLoss(clean, clean_est) + (1 - a) * mSDRLoss(noise, noise_est)
+    a = bsum(rf**2) / (bsum(rf**2) + bsum(noise**2) + eps)
+    wSDR = a * mSDRLoss(rf, rf_predicted) + (1 - a) * mSDRLoss(noise, noise_est)
     return torch.mean(wSDR)
 
 
+
+def test(model, device, test_loader):
+    model.eval()
+    test_loss = 0
+    correct = 0
+    with torch.no_grad():
+        for data, target in test_loader:
+            data, target = data.to(device), target.to(device)
+            data = stft(data).unsqueeze(dim=1)
+            real, imag = data[..., 0], data[..., 1]
+            out_real, out_imag = model(real, imag)
+            out_real, out_imag = torch.squeeze(out_real, 1), torch.squeeze(out_imag, 1)
+            output = istft(out_real, out_imag, data.size(1))
+            output = torch.squeeze(output, dim=1)
+            test_loss += wSDRLoss(data, target, output).item()
+
+
+    test_loss /= len(test_loader.dataset)
+
+    print('\nTest set: Average loss: {:.4f}, Accuracy: {}/{} ({:.0f}%)\n'.format(
+        test_loss, correct, len(test_loader.dataset),
+        100. * correct / len(test_loader.dataset)))
+
+
+def train(args, model, device, train_loader, optimizer, epoch):
+    model.train()
+    for batch_idx, (data, target) in enumerate(train_loader):
+
+        data, target = data.to(device), target.to(device)
+
+        data = stft(data).unsqueeze(dim=1)
+        real, imag = data[..., 0], data[..., 1]
+        out_real, out_imag = model(real, imag)
+        out_real, out_imag = torch.squeeze(out_real, 1), torch.squeeze(out_imag, 1)
+        output = istft(out_real, out_imag, data.size(1))
+        output = torch.squeeze(output, dim=1)
+
+        loss = wSDRLoss(data, target, output)
+
+        optimizer.zero_grad()
+        loss.backward()
+
+        if batch_idx % args.log_interval == 0:
+            print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(
+                epoch, batch_idx * len(data), len(train_loader.dataset),
+                       100. * batch_idx / len(train_loader), loss.item()))
+            if args.dry_run:
+                break
+
 def main():
+    # Training settings
+    parser = argparse.ArgumentParser(description='Receiver function')
+    parser.add_argument('--batch-size', type=int, default=64, metavar='N',
+                        help='input batch size for training (default: 64)')
+    parser.add_argument('--test-batch-size', type=int, default=1000, metavar='N',
+                        help='input batch size for testing (default: 1000)')
+    parser.add_argument('--epochs', type=int, default=14, metavar='N',
+                        help='number of epochs to train (default: 14)')
+    parser.add_argument('--lr', type=float, default=1.0, metavar='LR',
+                        help='learning rate (default: 1.0)')
+
+    parser.add_argument('--no-cuda', action='store_true', default=False,
+                        help='disables CUDA training')
+    parser.add_argument('--dry-run', action='store_true', default=False,
+                        help='quickly check a single pass')
+    parser.add_argument('--seed', type=int, default=1, metavar='S',
+                        help='random seed (default: 1)')
+    parser.add_argument('--log-interval', type=int, default=10, metavar='N',
+                        help='how many batches to wait before logging training status')
+    parser.add_argument('--save-model', action='store_true', default=False,
+                        help='For Saving the current Model')
+
+    parser.add_argument('--dataset_path', action='store_true', default="dataset.lst",
+                        help='path to dataset file lst, containing train and test file list ')
+    args = parser.parse_args()
+    use_cuda = not args.no_cuda and torch.cuda.is_available()
+
+    torch.manual_seed(args.seed)
+
+    device = torch.device("cuda" if use_cuda else "cpu")
+
+    train_kwargs = {'batch_size': args.batch_size}
+    test_kwargs = {'batch_size': args.test_batch_size}
+
+    if use_cuda:
+        cuda_kwargs = {'num_workers': 1,
+                       'pin_memory': True,
+                       'shuffle': True}
+        train_kwargs.update(cuda_kwargs)
+        test_kwargs.update(cuda_kwargs)
+
+    f=open(args.dataset_path, 'rb')
+    file_list=pickle.load(f)
+
+    test_file_list=[]
+    for  value in file_list["test"].values():
+        test_file_list=test_file_list+value
+
+    train_file_list = []
+    for  value in file_list["train"].values():
+        train_file_list=train_file_list+value
+
+    train_kwargs["file_list"] = train_file_list
+    train_loader = RfDataset( **train_kwargs)
+
+    train_kwargs["file_list"] = test_file_list
+    test_loader = RfDataset(train_kwargs)
 
     params = utils.Params(args.model_dir)
-    losses=[]
-    net = Unet(params.model).cuda()
+    Net = Unet(params.model)
+    model = Net().to(device)
 
-    train_dataset = AudioDataset(data_type='train')
-    test_dataset = AudioDataset(data_type='val')
-    train_data_loader = DataLoader(dataset=train_dataset, batch_size=args.batch_size,
-            collate_fn=train_dataset.collate, shuffle=True, num_workers=4)
-    test_data_loader = DataLoader(dataset=test_dataset, batch_size=args.batch_size,
-            collate_fn=test_dataset.collate, shuffle=False, num_workers=4)
+    optimizer = optim.Adam(model.parameters(), lr=args.lr)
 
-    torch.set_printoptions(precision=10, profile="full")
-
-    # Optimizer
-    optimizer = optim.Adam(net.parameters(), lr=1e-3)
-    # Learning rate scheduler
     scheduler = ExponentialLR(optimizer, 0.95)
 
-    for epoch in range(args.num_epochs):
-        train_bar = tqdm(train_data_loader)
-        for input in train_bar:
-            z_cmp, rf, seq_len = map(lambda x: x.cuda(), input)
-
-            mixed = stft(z_cmp).unsqueeze(dim=1)
-            real, imag = z_cmp[..., 0], z_cmp[..., 1]
-            out_real, out_imag = net(real, imag)
-            out_real, out_imag = torch.squeeze(out_real, 1), torch.squeeze(out_imag, 1)
-            rf_predicted = istft(out_real, out_imag, z_cmp.size(1))
-            rf_predicted = torch.squeeze(rf_predicted, dim=1)
-            for i, l in enumerate(seq_len):
-                rf_predicted[i, l:] = 0
-
-            loss = wSDRLoss(z_cmp, rf, rf_predicted)
-            losses.append(loss.numpy()[0])
-            optimizer.zero_grad()
-            loss.backward()
-
-            optimizer.step()
+    for epoch in range(1, args.epochs + 1):
+        train(args, model, device, train_loader, optimizer, epoch)
+        test(model, device, test_loader)
         scheduler.step()
-    torch.save(net.state_dict(), './final.pth.tar')
 
-    print( losses )
-
+    if args.save_model:
+        torch.save(model.state_dict(), "mnist_cnn.pt")
 
 if __name__ == '__main__':
     main()

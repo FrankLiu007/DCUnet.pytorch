@@ -1,85 +1,47 @@
-import numpy as np
 from tqdm import tqdm
-import librosa
-import os, csv
 import torch
-from torch.utils import data
+import sac
 
-# Reference
-# DATA LOADING - LOAD FILE LISTS
-def load_data_list(folder='./dataset', setname='train'):
-    assert(setname in ['train', 'val'])
 
-    dataset = {}
-    foldername = folder + '/' + setname + 'set'
+class RfDataset(torch.utils.data.Dataset):
 
-    print("Loading files...")
-    dataset['innames'] = []
-    dataset['outnames'] = []
-    dataset['shortnames'] = []
+    def read_data(self, file_list):
+        print("reading all data to memory.....")
+        data = {"z_cmp": [], "rf": []}
+        sampling_rate = self.pars["sampling_rate"]
+        for z_cmp, rf in file_list:
+            head_z, z = sac.read_sac(z_cmp)
+            head_rf, rf = sac.read_sac(z_cmp)
+            if round(1 / head_z['delta']) != sampling_rate or round(1 / head_rf['delta']) != sampling_rate:
+                print("Sampling rates of Z component or receiver function are not the same with pars...")
+                print("sampling rate in parameters:", sampling_rate, "sampling rate of z:", round(1 / head_z['delta']),
+                      "sampling rate of rf:", round(1 / head_rf['delta']))
+                print("at present, the resampling method was not implemented yet")
+                continue
+            cutted_z = self.cut_data(head_z, z)
+            cutted_rf = self.cut_data(head_rf, rf)
+            data["z_cmp"].append(cutted_z)
+            data["rf"].append(cutted_rf)
+        return data
 
-    filelist = os.listdir("%s_noisy"%(foldername))
-    filelist = [f for f in filelist if f.endswith(".wav")]
-    for i in tqdm(filelist):
-        dataset['innames'].append("%s_noisy/%s"%(foldername,i))
-        dataset['outnames'].append("%s_clean/%s"%(foldername,i))
-        dataset['shortnames'].append("%s"%(i))
+    def cut_data(self, head, data):
+        b = self.pars["begin_time"]
+        e = self.pars["stop_time"]
+        b_sample = round((b - head["b"]) / head["delta"]) + 1
+        e_sample = round((e - head["b"]) / head["delta"]) + 1
+        return data[b_sample:e_sample]
 
-    return dataset
-
-# DATA LOADING - LOAD FILE DATA
-def load_data(dataset):
-
-    dataset['inaudio']  = [None]*len(dataset['innames'])
-    dataset['outaudio'] = [None]*len(dataset['outnames'])
-
-    for id in tqdm(range(len(dataset['innames']))):
-
-        if dataset['inaudio'][id] is None:
-            inputData, sr = librosa.load(dataset['innames'][id], sr=None)
-            outputData, sr = librosa.load(dataset['outnames'][id], sr=None)
-
-            shape = np.shape(inputData)
-
-            dataset['inaudio'][id]  = np.float32(inputData)
-            dataset['outaudio'][id] = np.float32(outputData)
-
-    return dataset
-
-class RfDataset(data.Dataset):
-    """
-    Audio sample reader.
-    """
-
-    def __init__(self, data_type):
-        dataset = load_data_list(setname=data_type)
-        self.dataset = load_data(dataset)
-
-        self.file_names = dataset['innames']
+    def __init__(self, args):
+        self.pars = args
+        file_list=self.pars["file_list"]
+        self.dataset = self.read_data(file_list)
+        self.length = len(self.dataset["rf"])
 
     def __getitem__(self, idx):
-        mixed = torch.from_numpy(self.dataset['inaudio'][idx]).type(torch.FloatTensor)
-        clean = torch.from_numpy(self.dataset['outaudio'][idx]).type(torch.FloatTensor)
+        z_cmp = torch.from_numpy(self.dataset['z_cmp'][idx]).type(torch.FloatTensor)
+        rf = torch.from_numpy(self.dataset['rf'][idx]).type(torch.FloatTensor)
 
-        return mixed, clean
+        return z_cmp, rf
 
     def __len__(self):
-        return len(self.file_names)
-
-    def zero_pad_concat(self, inputs):
-        max_t = max(inp.shape[0] for inp in inputs)
-        shape = (len(inputs), max_t)
-        input_mat = np.zeros(shape, dtype=np.float32)
-        for e, inp in enumerate(inputs):
-            input_mat[e, :inp.shape[0]] = inp
-        return input_mat
-
-    def collate(self, inputs):
-        mixeds, cleans = zip(*inputs)
-        seq_lens = torch.IntTensor([i.shape[0] for i in mixeds])
-
-        x = torch.FloatTensor(self.zero_pad_concat(mixeds))
-        y = torch.FloatTensor(self.zero_pad_concat(cleans))
-
-        batch = [x, y, seq_lens]
-        return batch
+        return self.length
