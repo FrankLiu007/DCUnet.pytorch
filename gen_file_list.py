@@ -10,7 +10,7 @@ def get_file_list(path):
     for rf in  glob.glob( os.path.join(path, "china/2.5/*sac*") ) :
         #z_cmp=rf[:-11]+"BHZ.0.sac"
         z_cmp=os.path.basename(rf)[:-11]+"BHZ.0.sac"
-        z_cmp=os.path.join("china/resample_cut", z_cmp)
+        z_cmp=os.path.join(path, "china/resample_cut", z_cmp)
         if not os.path.exists( z_cmp ):
             print("file ", z_cmp, "not found")
             continue
@@ -20,7 +20,7 @@ def get_file_list(path):
 
     for rf in  glob.glob( os.path.join(path, "us/2.5/*sac*") ) :
         z_cmp=os.path.basename(rf)[:-11]+"BHZ.0.sac"
-        z_cmp=os.path.join("us/resample_cut", z_cmp)
+        z_cmp=os.path.join(path, "us/resample_cut", z_cmp)
         if not os.path.exists( z_cmp ):
             print("file ", z_cmp, "not found")
             continue
