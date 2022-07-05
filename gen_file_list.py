@@ -2,6 +2,7 @@ import os
 import glob
 import random
 import pickle
+import sys
 
 def get_file_list(path):
     rfs=[]
@@ -60,4 +61,4 @@ def main(path):
     train, test=split_dataset(file_list, 0.1)
     write_data(os.path.join(path, "dataset.lst"), {"train":train, "test":test})
 if __name__ == '__main__':
-    main(".")
+    main(sys.argv[1])
