@@ -66,7 +66,7 @@ def test(model, device, test_loader):
 
 def train(args, model, device, train_loader, optimizer, epoch):
     model.train()
-    for batch_idx, (data, target) in enumerate(train_loader):
+    for batch_idx, (data, target) in tqdm(train_loader):
 
         data, target = data.to(device), target.to(device)
 
