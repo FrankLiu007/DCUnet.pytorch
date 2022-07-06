@@ -11,7 +11,7 @@ import utils
 from models.unet import Unet
 from models.layers.istft import ISTFT
 from se_dataset import RfDataset
-
+import datetime
 
 def wSDRLoss(z_cmp, rf, rf_predicted, eps=2e-7):
     # Used on signal level(time-domain). Backprop-able istft should be used.
@@ -174,14 +174,21 @@ def main():
     stft = lambda x: torch.stft(x, n_fft, hop_length, window=window)
     istft = ISTFT(n_fft, hop_length, window='hanning').to(device)
 
-
+    train_losses=[]
+    test_losses=[]
     for epoch in range(1, args.epochs + 1):
-        train(args, model, device, train_loader, optimizer, epoch, stft, istft)
-        test(model, device, test_loader,  stft, istft)
-        scheduler.step()
+        loss=train(args, model, device, train_loader, optimizer, epoch, stft, istft)
+        train_losses.append(loss)
+        loss=test(model, device, test_loader,  stft, istft)
+        test_losses.append(loss)
 
+        scheduler.step()
+    prefix=str(datetime.datetime.now())
     if args.save_model:
-        torch.save(model.state_dict(), "mnist_cnn.pt")
+        torch.save(model.state_dict(), prefix+".dcunet.pt")
+    f=open(prefix+".losses", 'wb')
+    pickle.dump({"train":train_losses, "test":test_losses}, f)
+    f.close()
 
 if __name__ == '__main__':
     main()
