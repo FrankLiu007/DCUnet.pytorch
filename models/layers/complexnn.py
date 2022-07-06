@@ -184,8 +184,8 @@ class ComplexBatchNorm(torch.nn.Module):
         # sqrt of a 2x2 matrix,
         # - https://en.wikipedia.org/wiki/Square_root_of_a_2_by_2_matrix
         tau   = Vrr + Vii
-        # delta = torch.addcmul(Vrr * Vii, -1, Vri, Vri)
-        delta = torch.addcmul(Vrr * Vii,  Vri, Vri, -1)
+        delta = torch.addcmul(Vrr * Vii, -1, Vri, Vri)
+        #delta = torch.addcmul(Vrr * Vii,  Vri, Vri, -1)
         s     = delta.sqrt()
         t     = (tau + 2*s).sqrt()
 
