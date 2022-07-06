@@ -39,28 +39,26 @@ def test(model, device, test_loader, stft, istft):
     test_loss = 0
     correct = 0
     with torch.no_grad():
-        for data, target in test_loader:
-            data, target = data.to(device), target.to(device)
-            data = stft(data).unsqueeze(dim=1)
+        for train_data, target in test_loader:
+            train_data, target = train_data.to(device), target.to(device)
+            data = stft(train_data).unsqueeze(dim=1)
             real, imag = data[..., 0], data[..., 1]
             out_real, out_imag = model(real, imag)
             out_real, out_imag = torch.squeeze(out_real, 1), torch.squeeze(out_imag, 1)
-            output = istft(out_real, out_imag, data.size(1))
+            output = istft(out_real, out_imag, train_data.size(1))
             output = torch.squeeze(output, dim=1)
-            test_loss += wSDRLoss(data, target, output).item()
+            test_loss += wSDRLoss(train_data, target, output).item()
 
-
-    test_loss /= len(test_loader.dataset)
-
-    print('\nTest set: Average loss: {:.4f}, Accuracy: {}/{} ({:.0f}%)\n'.format(
-        test_loss, correct, len(test_loader.dataset),
-        100. * correct / len(test_loader.dataset)))
+    # test_loss /= len(test_loader.dataset)
+    #
+    # print('\nTest set: Average loss: {:.4f}, Accuracy: {}/{} ({:.0f}%)\n'.format(
+    #     test_loss, correct, len(test_loader.dataset),
+    #     100. * correct / len(test_loader.dataset)))
 
 
 def train(args, model, device, train_loader, optimizer, epoch, stft, istft):
     model.train()
     for train_data, target in tqdm(train_loader):
-
         train_data, target = train_data.to(device), target.to(device)
 
         data = stft(train_data).unsqueeze(dim=1)
