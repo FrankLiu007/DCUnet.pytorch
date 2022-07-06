@@ -39,6 +39,7 @@ def test(model, device, test_loader, stft, istft):
     model.eval()
     losses = []
     correct = 0
+    relatives=[]
     with torch.no_grad():
         for train_data, target in test_loader:
             train_data, target = train_data.to(device), target.to(device)
@@ -51,7 +52,11 @@ def test(model, device, test_loader, stft, istft):
             loss = wSDRLoss(train_data, target, output)
             losses.append(loss.item())
 
-    return losses
+            output=output-output.mean()
+            target=target-target.mean()
+            relatives.append( output*target/torch.norm(output, 2)/torch.norm(target, 2) )
+
+    return (losses,relatives)
 
 
 
