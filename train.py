@@ -120,8 +120,9 @@ def main():
     parser.add_argument('--save-model', action='store_true', default=False,
                         help='For Saving the current Model')
 
-    parser.add_argument('--dataset_path', action='store_true', default="dataset.lst",
+    parser.add_argument('--dataset-path', action='store_true', default="dataset.lst",
                         help='path to dataset file lst, containing train and test file list ')
+
     args = parser.parse_args()
     use_cuda = not args.no_cuda and torch.cuda.is_available()
 
