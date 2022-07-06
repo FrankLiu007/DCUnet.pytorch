@@ -115,6 +115,9 @@ def main():
     parser.add_argument('--dataset_path',  default="dataset.lst", metavar='path',
                         help='path to dataset file lst, containing train and test file list ')
 
+    parser.add_argument('--model_path',  default="exp/unet16.json", metavar='path',
+                        help='path to dataset file lst, containing train and test file list ')
+
     parser.add_argument('--sampling_rate', type=int, default=20, metavar='sr',
                         help='sampling rate for all waveforms (default: 20)')
     parser.add_argument('--begin_time', type=float, default=-5, metavar='sr',
@@ -156,7 +159,7 @@ def main():
     train_kwargs["file_list"] = test_file_list
     test_loader = RfDataset(args, test_file_list)
 
-    params = utils.Params(args.model_dir)
+    params = utils.Params(args.model_path)
     Net = Unet(params.model)
     model = Net().to(device)
 
