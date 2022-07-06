@@ -1,8 +1,6 @@
 import argparse
 
 import torch
-import torch.nn as nn
-
 import torch.optim as optim
 from torch.optim.lr_scheduler import ExponentialLR
 
@@ -15,13 +13,7 @@ from models.layers.istft import ISTFT
 from se_dataset import RfDataset
 
 
-parser = argparse.ArgumentParser()
-parser.add_argument('--model_dir', default='exp/unet16.json', help="Directory containing params.json")
-parser.add_argument('--restore_file', default=None, help="Optional, name of the file in --model_dir containing weights to reload before training")  # 'best' or 'train'
-parser.add_argument('--batch_size', default=32, type=int, help='train batch size')
-parser.add_argument('--num_epochs', default=100, type=int, help='train epochs number')
-args = parser.parse_args()
-torch.cuda.set_device(1)
+
 
 n_fft, hop_length = 512, 160
 window = torch.hann_window(n_fft).cuda()
@@ -106,8 +98,8 @@ def main():
                         help='input batch size for testing (default: 1000)')
     parser.add_argument('--epochs', type=int, default=14, metavar='N',
                         help='number of epochs to train (default: 14)')
-    parser.add_argument('--lr', type=float, default=1.0, metavar='LR',
-                        help='learning rate (default: 1.0)')
+    # parser.add_argument('--lr', type=float, default=1.0, metavar='LR',
+    #                     help='learning rate (default: 1.0)')
 
     parser.add_argument('--no-cuda', action='store_true', default=False,
                         help='disables CUDA training')
