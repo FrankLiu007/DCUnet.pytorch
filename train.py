@@ -112,7 +112,7 @@ def main():
     parser.add_argument('--save_model', action='store_true', default=False,
                         help='For Saving the current Model')
 
-    parser.add_argument('--dataset_path', action='store_true', default="dataset.lst", metavar='path',
+    parser.add_argument('--dataset_path',  default="dataset.lst", metavar='path',
                         help='path to dataset file lst, containing train and test file list ')
 
     parser.add_argument('--sampling_rate', type=int, default=20, metavar='sr',
