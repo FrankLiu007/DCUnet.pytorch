@@ -101,8 +101,9 @@ def main():
     parser.add_argument('--lr', type=float, default=1.0e-3, metavar='LR',
                         help='learning rate (default: 1.0e-3)')
 
-    parser.add_argument('--no-cuda', action='store_true', default=False,
-                        help='disables CUDA training')
+    parser.add_argument('--device', type=int, default=0,
+                        help='using CUDA for training, -1 is cpu, 0 is cuda 0 etc.')
+
     parser.add_argument('--dry-run', action='store_true', default=False,
                         help='quickly check a single pass')
     parser.add_argument('--seed', type=int, default=1, metavar='S',
@@ -130,7 +131,7 @@ def main():
 
     torch.manual_seed(args.seed)
 
-    device = torch.device("cuda" if use_cuda else "cpu")
+    device = torch.device("cuda:0" if use_cuda else "cpu")   ##use cuda 0
 
     train_kwargs = {'batch_size': args.batch_size}
     test_kwargs = {'batch_size': args.test_batch_size}
