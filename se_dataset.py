@@ -9,7 +9,8 @@ class RfDataset(torch.utils.data.Dataset):
         print("reading all data to memory.....")
         data = {"z_cmp": [], "rf": []}
         sampling_rate = self.pars.sampling_rate
-        for z_cmp, rf in file_list:
+
+        for z_cmp, rf in tqdm(file_list):
             head_z, z = sac.read_sac(z_cmp)
             head_rf, rf = sac.read_sac(z_cmp)
             if round(1 / head_z['delta']) != sampling_rate or round(1 / head_rf['delta']) != sampling_rate:
