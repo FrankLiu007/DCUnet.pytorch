@@ -13,13 +13,6 @@ from models.layers.istft import ISTFT
 from se_dataset import RfDataset
 
 
-
-
-n_fft, hop_length = 512, 160
-window = torch.hann_window(n_fft).cuda()
-stft = lambda x: torch.stft(x, n_fft, hop_length, window=window)
-istft = ISTFT(n_fft, hop_length, window='hanning').cuda()
-
 def wSDRLoss(z_cmp, rf, rf_predicted, eps=2e-7):
     # Used on signal level(time-domain). Backprop-able istft should be used.
     # Batched audio inputs shape (N x T) required.
@@ -41,7 +34,7 @@ def wSDRLoss(z_cmp, rf, rf_predicted, eps=2e-7):
 
 
 
-def test(model, device, test_loader):
+def test(model, device, test_loader, stft, istft):
     model.eval()
     test_loss = 0
     correct = 0
@@ -64,7 +57,7 @@ def test(model, device, test_loader):
         100. * correct / len(test_loader.dataset)))
 
 
-def train(args, model, device, train_loader, optimizer, epoch):
+def train(args, model, device, train_loader, optimizer, epoch, stft, istft):
     model.train()
     for data, target in tqdm(train_loader):
 
@@ -88,6 +81,7 @@ def train(args, model, device, train_loader, optimizer, epoch):
         #                100. * batch_idx / len(train_loader), loss.item()))
         #     if args.dry_run:
         #         break
+
 
 def main():
     # Training settings
@@ -144,6 +138,7 @@ def main():
     else:
         device = torch.device("cpu")
 
+#### load file list
     f=open(args.dataset_path, 'rb')
     file_list=pickle.load(f)
 
@@ -157,11 +152,11 @@ def main():
 
     train_kwargs["file_list"] = train_file_list
     train_set = RfDataset( args, train_file_list)
-    train_loader=torch.utils.data.DataLoader(dataset=train_set, batch_size=args.batch_size, shuffle=True, num_workers=4)
+    train_loader=torch.utils.data.DataLoader(dataset=train_set[:1000], batch_size=args.batch_size, shuffle=True, num_workers=4)
 
     train_kwargs["file_list"] = test_file_list
     test_set = RfDataset(args, test_file_list)
-    test_loader = torch.utils.data.DataLoader(dataset=test_set, batch_size=args.batch_size, shuffle=True, num_workers=4)
+    test_loader = torch.utils.data.DataLoader(dataset=test_set[:100], batch_size=args.batch_size, shuffle=True, num_workers=4)
 
     params = utils.Params(args.model_path)
     Net = Unet(params.model)
@@ -171,9 +166,15 @@ def main():
 
     scheduler = ExponentialLR(optimizer, 0.95)
 
+    n_fft, hop_length = 512, 160
+    window = torch.hann_window(n_fft).to(device)
+    stft = lambda x: torch.stft(x, n_fft, hop_length, window=window)
+    istft = ISTFT(n_fft, hop_length, window='hanning').to(device)
+
+
     for epoch in range(1, args.epochs + 1):
-        train(args, model, device, train_loader, optimizer, epoch)
-        test(model, device, test_loader)
+        train(args, model, device, train_loader, optimizer, epoch, stft, istft)
+        test(model, device, test_loader,  stft, istft)
         scheduler.step()
 
     if args.save_model:
