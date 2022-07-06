@@ -7,6 +7,7 @@ path=sys.argv[1]
 
 f=open(path, "rb")
 losses=pickle.load(f)
+f.close()
 
 train_loss=[]
 for item in losses["train"]:
