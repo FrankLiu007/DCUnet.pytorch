@@ -98,8 +98,8 @@ def main():
                         help='input batch size for testing (default: 1000)')
     parser.add_argument('--epochs', type=int, default=14, metavar='N',
                         help='number of epochs to train (default: 14)')
-    # parser.add_argument('--lr', type=float, default=1.0, metavar='LR',
-    #                     help='learning rate (default: 1.0)')
+    parser.add_argument('--lr', type=float, default=1.0e-3, metavar='LR',
+                        help='learning rate (default: 1.0e-3)')
 
     parser.add_argument('--no-cuda', action='store_true', default=False,
                         help='disables CUDA training')
