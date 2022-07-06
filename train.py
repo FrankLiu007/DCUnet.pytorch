@@ -59,18 +59,18 @@ def test(model, device, test_loader, stft, istft):
 
 def train(args, model, device, train_loader, optimizer, epoch, stft, istft):
     model.train()
-    for data, target in tqdm(train_loader):
+    for train_data, target in tqdm(train_loader):
 
-        data, target = data.to(device), target.to(device)
+        train_data, target = data.to(device), target.to(device)
 
-        data = stft(data).unsqueeze(dim=1)
+        data = stft(train_data).unsqueeze(dim=1)
         real, imag = data[..., 0], data[..., 1]
         out_real, out_imag = model(real, imag)
         out_real, out_imag = torch.squeeze(out_real, 1), torch.squeeze(out_imag, 1)
-        output = istft(out_real, out_imag, data.size(1))
+        output = istft(out_real, out_imag, train_data.size(1))
         output = torch.squeeze(output, dim=1)
 
-        loss = wSDRLoss(data, target, output)
+        loss = wSDRLoss(train_data, target, output)
 
         optimizer.zero_grad()
         loss.backward()
@@ -151,7 +151,7 @@ def main():
     for  value in file_list["train"].values():
         train_file_list=train_file_list+value
     train_file_list=train_file_list[:1000]
-    
+
     train_kwargs["file_list"] = train_file_list
     train_set = RfDataset( args, train_file_list)
     train_loader=torch.utils.data.DataLoader(dataset=train_set, batch_size=args.batch_size, shuffle=True, num_workers=4)
