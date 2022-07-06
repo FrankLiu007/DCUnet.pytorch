@@ -161,7 +161,7 @@ def main():
 
     params = utils.Params(args.model_path)
     Net = Unet(params.model)
-    model = Net().to(device)
+    model = Net.to(device)
 
     optimizer = optim.Adam(model.parameters(), lr=args.lr)
 
