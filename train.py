@@ -127,21 +127,22 @@ def main():
                         help='stop time of the window used to cut waveforms (default: -90)')
 
     args = parser.parse_args()
-    use_cuda = not args.no_cuda and torch.cuda.is_available()
 
     torch.manual_seed(args.seed)
-
-    device = torch.device("cuda:0" if use_cuda else "cpu")   ##use cuda 0
 
     train_kwargs = {'batch_size': args.batch_size}
     test_kwargs = {'batch_size': args.test_batch_size}
 
-    if use_cuda:
+    device = None
+    if args.device!=-1:
+        device=torch.device(args.device)
         cuda_kwargs = {'num_workers': 1,
                        'pin_memory': True,
                        'shuffle': True}
         train_kwargs.update(cuda_kwargs)
         test_kwargs.update(cuda_kwargs)
+    else:
+        device = torch.device("cpu")
 
     f=open(args.dataset_path, 'rb')
     file_list=pickle.load(f)
