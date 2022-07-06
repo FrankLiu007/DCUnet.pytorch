@@ -61,7 +61,7 @@ def train(args, model, device, train_loader, optimizer, epoch, stft, istft):
     model.train()
     for train_data, target in tqdm(train_loader):
 
-        train_data, target = data.to(device), target.to(device)
+        train_data, target = train_data.to(device), target.to(device)
 
         data = stft(train_data).unsqueeze(dim=1)
         real, imag = data[..., 0], data[..., 1]
