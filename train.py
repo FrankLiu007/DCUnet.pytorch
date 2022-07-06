@@ -92,9 +92,9 @@ def train(args, model, device, train_loader, optimizer, epoch):
 def main():
     # Training settings
     parser = argparse.ArgumentParser(description='Receiver function')
-    parser.add_argument('--batch-size', type=int, default=64, metavar='N',
+    parser.add_argument('--batch_size', type=int, default=64, metavar='N',
                         help='input batch size for training (default: 64)')
-    parser.add_argument('--test-batch-size', type=int, default=1000, metavar='N',
+    parser.add_argument('--test_batch_size', type=int, default=1000, metavar='N',
                         help='input batch size for testing (default: 1000)')
     parser.add_argument('--epochs', type=int, default=14, metavar='N',
                         help='number of epochs to train (default: 14)')
@@ -107,13 +107,20 @@ def main():
                         help='quickly check a single pass')
     parser.add_argument('--seed', type=int, default=1, metavar='S',
                         help='random seed (default: 1)')
-    parser.add_argument('--log-interval', type=int, default=10, metavar='N',
+    parser.add_argument('--log_interval', type=int, default=10, metavar='N',
                         help='how many batches to wait before logging training status')
-    parser.add_argument('--save-model', action='store_true', default=False,
+    parser.add_argument('--save_model', action='store_true', default=False,
                         help='For Saving the current Model')
 
-    parser.add_argument('--dataset-path', action='store_true', default="dataset.lst",
+    parser.add_argument('--dataset_path', action='store_true', default="dataset.lst", metavar='path',
                         help='path to dataset file lst, containing train and test file list ')
+
+    parser.add_argument('--sampling_rate', type=int, default=20, metavar='sr',
+                        help='sampling rate for all waveforms (default: 20)')
+    parser.add_argument('--begin_time', type=float, default=-5, metavar='sr',
+                        help='begin time of the window used to cut waveforms (default: -5)')
+    parser.add_argument('--stop_time', type=float, default=90, metavar='sr',
+                        help='stop time of the window used to cut waveforms (default: -90)')
 
     args = parser.parse_args()
     use_cuda = not args.no_cuda and torch.cuda.is_available()
@@ -144,10 +151,10 @@ def main():
         train_file_list=train_file_list+value
 
     train_kwargs["file_list"] = train_file_list
-    train_loader = RfDataset( **train_kwargs)
+    train_loader = RfDataset( args, train_file_list)
 
     train_kwargs["file_list"] = test_file_list
-    test_loader = RfDataset(train_kwargs)
+    test_loader = RfDataset(args, test_file_list)
 
     params = utils.Params(args.model_dir)
     Net = Unet(params.model)

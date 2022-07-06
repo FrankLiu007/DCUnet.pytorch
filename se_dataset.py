@@ -31,9 +31,9 @@ class RfDataset(torch.utils.data.Dataset):
         e_sample = round((e - head["b"]) / head["delta"]) + 1
         return data[b_sample:e_sample]
 
-    def __init__(self, args):
+    def __init__(self, args, file_list):
         self.pars = args
-        file_list=self.pars["file_list"]
+        self.file_list=file_list
         self.dataset = self.read_data(file_list)
         self.length = len(self.dataset["rf"])
 
