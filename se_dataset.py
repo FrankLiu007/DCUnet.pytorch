@@ -12,7 +12,7 @@ class RfDataset(torch.utils.data.Dataset):
 
         for z_cmp, rf in tqdm(file_list):
             head_z, z = sac.read_sac(z_cmp)
-            head_rf, rf = sac.read_sac(z_cmp)
+            head_rf, rf = sac.read_sac(rf)
             if round(1 / head_z['delta']) != sampling_rate or round(1 / head_rf['delta']) != sampling_rate:
                 print("Sampling rates of Z component or receiver function are not the same with pars...")
                 print("sampling rate in parameters:", sampling_rate, "sampling rate of z:", round(1 / head_z['delta']),
