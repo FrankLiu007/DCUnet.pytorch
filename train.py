@@ -64,6 +64,7 @@ def test(model, device, test_loader, stft, istft):
 
             torch.save(output, str(i)+"_predicted_rf")
             torch.save(output, str(i) + "_rf")
+            i=i+1
 
     return (losses,relatives)
 
