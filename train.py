@@ -54,7 +54,9 @@ def test(model, device, test_loader, stft, istft):
 
             output=output-output.mean()
             target=target-target.mean()
-            tt=output*target/torch.norm(output, 2)/torch.norm(target, 2)
+
+            tt=torch.sum(output*target)/torch.norm(output, 2)/torch.norm(target, 2)
+
             relatives.append( tt.item() )
 
     return (losses,relatives)
