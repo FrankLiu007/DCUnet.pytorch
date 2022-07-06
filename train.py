@@ -98,9 +98,6 @@ def main():
     parser.add_argument('--seed', type=int, default=1, metavar='S',
                         help='random seed (default: 1)')
 
-    parser.add_argument('--save_model', action='store_true', default=False,
-                        help='For Saving the current Model')
-
     parser.add_argument('--dataset_path', default="dataset.lst", metavar='path',
                         help='path to dataset file lst, containing train and test file list ')
 
