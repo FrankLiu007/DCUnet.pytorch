@@ -23,3 +23,5 @@ plt.plot(train_loss, 'r')
 plt.plot(test_loss, 'g')
 plt.plot(relatives)
 plt.show()
+
+

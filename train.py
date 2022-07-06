@@ -35,11 +35,14 @@ def wSDRLoss(z_cmp, rf, rf_predicted, eps=2e-7):
     return torch.mean(wSDR)
 
 
+
 def test(model, device, test_loader, stft, istft):
     model.eval()
     losses = []
     correct = 0
     relatives=[]
+
+    i=1
     with torch.no_grad():
         for train_data, target in test_loader:
             train_data, target = train_data.to(device), target.to(device)
@@ -52,12 +55,15 @@ def test(model, device, test_loader, stft, istft):
             loss = wSDRLoss(train_data, target, output)
             losses.append(loss.item())
 
-            output=output-output.mean()
-            target=target-target.mean()
+            output=(output-output.mean())/torch.norm(output, 2)
+            target=(target-target.mean())/torch.norm(target, 2)
 
-            tt=torch.sum(output*target)/torch.norm(output, 2)/torch.norm(target, 2)
+            tt=torch.sum(output*target)
 
             relatives.append( tt.item() )
+
+            torch.save(output, str(i)+"_predicted_rf")
+            torch.save(output, str(i) + "_rf")
 
     return (losses,relatives)
 
