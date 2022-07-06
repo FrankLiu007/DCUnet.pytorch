@@ -66,7 +66,7 @@ def test(model, device, test_loader):
 
 def train(args, model, device, train_loader, optimizer, epoch):
     model.train()
-    for batch_idx, (data, target) in tqdm(train_loader):
+    for data, target in tqdm(train_loader):
 
         data, target = data.to(device), target.to(device)
 
@@ -82,12 +82,12 @@ def train(args, model, device, train_loader, optimizer, epoch):
         optimizer.zero_grad()
         loss.backward()
 
-        if batch_idx % args.log_interval == 0:
-            print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(
-                epoch, batch_idx * len(data), len(train_loader.dataset),
-                       100. * batch_idx / len(train_loader), loss.item()))
-            if args.dry_run:
-                break
+        # if batch_idx % args.log_interval == 0:
+        #     print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(
+        #         epoch, batch_idx * len(data), len(train_loader.dataset),
+        #                100. * batch_idx / len(train_loader), loss.item()))
+        #     if args.dry_run:
+        #         break
 
 def main():
     # Training settings
@@ -154,10 +154,12 @@ def main():
         train_file_list=train_file_list+value
 
     train_kwargs["file_list"] = train_file_list
-    train_loader = RfDataset( args, train_file_list)
+    train_set = RfDataset( args, train_file_list)
+    train_loader=torch.utils.data.DataLoader(dataset=train_set, batch_size=args.batch_size, shuffle=True, num_workers=4)
 
     train_kwargs["file_list"] = test_file_list
-    test_loader = RfDataset(args, test_file_list)
+    test_set = RfDataset(args, test_file_list)
+    test_loader = torch.utils.data.DataLoader(dataset=test_set, batch_size=args.batch_size, shuffle=True, num_workers=4)
 
     params = utils.Params(args.model_path)
     Net = Unet(params.model)
