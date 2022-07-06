@@ -16,7 +16,7 @@ test_loss=[]
 relatives=[]
 for item,relative in losses["test"]:
     test_loss.append( sum(item)/len(item) )
-    relatives.append(relative)
+    relatives.append(sum(relative)/len(relative))
 
 plt.plot(train_loss, 'r')
 plt.plot(test_loss, 'g')
