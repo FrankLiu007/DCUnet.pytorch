@@ -145,18 +145,20 @@ def main():
     test_file_list=[]
     for  value in file_list["test"].values():
         test_file_list=test_file_list+value
+    test_file_list=test_file_list[:100]
 
     train_file_list = []
     for  value in file_list["train"].values():
         train_file_list=train_file_list+value
-
+    train_file_list=train_file_list[:1000]
+    
     train_kwargs["file_list"] = train_file_list
     train_set = RfDataset( args, train_file_list)
-    train_loader=torch.utils.data.DataLoader(dataset=train_set[:1000], batch_size=args.batch_size, shuffle=True, num_workers=4)
+    train_loader=torch.utils.data.DataLoader(dataset=train_set, batch_size=args.batch_size, shuffle=True, num_workers=4)
 
     train_kwargs["file_list"] = test_file_list
     test_set = RfDataset(args, test_file_list)
-    test_loader = torch.utils.data.DataLoader(dataset=test_set[:100], batch_size=args.batch_size, shuffle=True, num_workers=4)
+    test_loader = torch.utils.data.DataLoader(dataset=test_set, batch_size=args.batch_size, shuffle=True, num_workers=4)
 
     params = utils.Params(args.model_path)
     Net = Unet(params.model)
