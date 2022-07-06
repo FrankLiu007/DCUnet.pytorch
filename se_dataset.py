@@ -8,7 +8,7 @@ class RfDataset(torch.utils.data.Dataset):
     def read_data(self, file_list):
         print("reading all data to memory.....")
         data = {"z_cmp": [], "rf": []}
-        sampling_rate = self.pars["sampling_rate"]
+        sampling_rate = self.pars.sampling_rate
         for z_cmp, rf in file_list:
             head_z, z = sac.read_sac(z_cmp)
             head_rf, rf = sac.read_sac(z_cmp)
@@ -25,8 +25,8 @@ class RfDataset(torch.utils.data.Dataset):
         return data
 
     def cut_data(self, head, data):
-        b = self.pars["begin_time"]
-        e = self.pars["stop_time"]
+        b = self.pars.begin_time
+        e = self.pars.stop_time
         b_sample = round((b - head["b"]) / head["delta"]) + 1
         e_sample = round((e - head["b"]) / head["delta"]) + 1
         return data[b_sample:e_sample]
