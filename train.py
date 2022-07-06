@@ -36,7 +36,7 @@ def wSDRLoss(z_cmp, rf, rf_predicted, eps=2e-7):
 
 def test(model, device, test_loader, stft, istft):
     model.eval()
-    test_loss = 0
+    losses = []
     correct = 0
     with torch.no_grad():
         for train_data, target in test_loader:
@@ -47,7 +47,8 @@ def test(model, device, test_loader, stft, istft):
             out_real, out_imag = torch.squeeze(out_real, 1), torch.squeeze(out_imag, 1)
             output = istft(out_real, out_imag, train_data.size(1))
             output = torch.squeeze(output, dim=1)
-            test_loss += wSDRLoss(train_data, target, output).item()
+            loss= wSDRLoss(train_data, target, output)
+            losses.append(loss.item())
 
     # test_loss /= len(test_loader.dataset)
     #
@@ -58,6 +59,7 @@ def test(model, device, test_loader, stft, istft):
 
 def train(args, model, device, train_loader, optimizer, epoch, stft, istft):
     model.train()
+    losses=[]
     for train_data, target in tqdm(train_loader):
         train_data, target = train_data.to(device), target.to(device)
 
@@ -69,10 +71,11 @@ def train(args, model, device, train_loader, optimizer, epoch, stft, istft):
         output = torch.squeeze(output, dim=1)
 
         loss = wSDRLoss(train_data, target, output)
-
         optimizer.zero_grad()
         loss.backward()
+        optimizer.step()
 
+        losses.append(loss.item())
         # if batch_idx % args.log_interval == 0:
         #     print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(
         #         epoch, batch_idx * len(data), len(train_loader.dataset),
