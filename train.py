@@ -14,86 +14,7 @@ from se_dataset import RfDataset
 import datetime
 
 
-def wSDRLoss(z_cmp, rf, rf_predicted, eps=2e-7):
-    # Used on signal level(time-domain). Backprop-able istft should be used.
-    # Batched audio inputs shape (N x T) required.
-    bsum = lambda x: torch.sum(x, dim=1)  # Batch preserving sum for convenience.
-
-    def mSDRLoss(orig, est):
-        # Modified SDR loss, <x, x`> / (||x|| * ||x`||) : L2 Norm.
-        # Original SDR Loss: <x, x`>**2 / <x`, x`> (== ||x`||**2)
-        #  > Maximize Correlation while producing minimum energy output.
-        correlation = bsum(orig * est)
-        energies = torch.norm(orig, p=2, dim=1) * torch.norm(est, p=2, dim=1)
-        return -(correlation / (energies + eps))
-
-    noise = z_cmp - rf
-    noise_est = z_cmp - rf_predicted
-
-    a = bsum(rf ** 2) / (bsum(rf ** 2) + bsum(noise ** 2) + eps)
-    wSDR = a * mSDRLoss(rf, rf_predicted) + (1 - a) * mSDRLoss(noise, noise_est)
-    return torch.mean(wSDR)
-
-
-
-def test(model, device, test_loader, stft, istft):
-    model.eval()
-    losses = []
-    correct = 0
-    relatives=[]
-
-    i=1
-    with torch.no_grad():
-        for train_data, target in test_loader:
-            train_data, target = train_data.to(device), target.to(device)
-            data = stft(train_data).unsqueeze(dim=1)
-            real, imag = data[..., 0], data[..., 1]
-            out_real, out_imag = model(real, imag)
-            out_real, out_imag = torch.squeeze(out_real, 1), torch.squeeze(out_imag, 1)
-            output = istft(out_real, out_imag, train_data.size(1))
-            output = torch.squeeze(output, dim=1)
-            loss = wSDRLoss(train_data, target, output)
-            losses.append(loss.item())
-
-            output=(output-output.mean())/torch.norm(output, 2)
-            target=(target-target.mean())/torch.norm(target, 2)
-
-            tt=torch.sum(output*target)
-
-            relatives.append( tt.item() )
-
-            torch.save(output, str(i)+"_predicted_rf")
-            torch.save(target, str(i) + "_rf")
-            i=i+1
-
-    return (losses,relatives)
-
-
-
-def train(args, model, device, train_loader, optimizer, epoch, stft, istft):
-    model.train()
-    losses = []
-    for train_data, target in tqdm(train_loader):
-        train_data, target = train_data.to(device), target.to(device)
-
-        data = stft(train_data).unsqueeze(dim=1)
-        real, imag = data[..., 0], data[..., 1]
-        out_real, out_imag = model(real, imag)
-        out_real, out_imag = torch.squeeze(out_real, 1), torch.squeeze(out_imag, 1)
-        output = istft(out_real, out_imag, train_data.size(1))
-        output = torch.squeeze(output, dim=1)
-
-        loss = wSDRLoss(train_data, target, output)
-        optimizer.zero_grad()
-        loss.backward()
-        optimizer.step()
-
-        losses.append(loss.item())
-
-    return  losses
-
-
-def main():
+def get_args():
     # Training settings
     parser = argparse.ArgumentParser(description='Receiver function')
     parser.add_argument('--batch_size', type=int, default=64, metavar='N',
@@ -126,23 +47,94 @@ def main():
     parser.add_argument('--stop_time', type=float, default=90, metavar='sr',
                         help='stop time of the window used to cut waveforms (default: -90)')
 
-    args = parser.parse_args()
+    return parser.parse_args()
+
+def wSDRLoss(z_cmp, rf, rf_predicted, eps=2e-7):
+    # Used on signal level(time-domain). Backprop-able istft should be used.
+    # Batched audio inputs shape (N x T) required.
+    bsum = lambda x: torch.sum(x, dim=1)  # Batch preserving sum for convenience.
+
+    def mSDRLoss(orig, est):
+        # Modified SDR loss, <x, x`> / (||x|| * ||x`||) : L2 Norm.
+        # Original SDR Loss: <x, x`>**2 / <x`, x`> (== ||x`||**2)
+        #  > Maximize Correlation while producing minimum energy output.
+        correlation = bsum(orig * est)
+        energies = torch.norm(orig, p=2, dim=1) * torch.norm(est, p=2, dim=1)
+        return -(correlation / (energies + eps))
+
+    noise = z_cmp - rf
+    noise_est = z_cmp - rf_predicted
+
+    a = bsum(rf ** 2) / (bsum(rf ** 2) + bsum(noise ** 2) + eps)
+    wSDR = a * mSDRLoss(rf, rf_predicted) + (1 - a) * mSDRLoss(noise, noise_est)
+    return torch.mean(wSDR)
+
+
+def test(model, device, test_loader, stft, istft):
+    model.eval()
+    losses = []
+    correct = 0
+    relatives = []
+
+    i = 1
+    with torch.no_grad():
+        for train_data, target in test_loader:
+            train_data, target = train_data.to(device), target.to(device)
+            data = stft(train_data).unsqueeze(dim=1)
+            real, imag = data[..., 0], data[..., 1]
+            out_real, out_imag = model(real, imag)
+            out_real, out_imag = torch.squeeze(out_real, 1), torch.squeeze(out_imag, 1)
+            output = istft(out_real, out_imag, train_data.size(1))
+            output = torch.squeeze(output, dim=1)
+            loss = wSDRLoss(train_data, target, output)
+            losses.append(loss.item())
+
+            output = (output - output.mean()) / torch.norm(output, 2)
+            target = (target - target.mean()) / torch.norm(target, 2)
+
+            tt = torch.sum(output * target)
+
+            relatives.append(tt.item())
+
+            torch.save(output, str(i) + "_predicted_rf")
+            torch.save(target, str(i) + "_rf")
+            i = i + 1
+
+    return (losses, relatives)
+
+
+def train(args, model, device, train_loader, optimizer, epoch, stft, istft):
+    model.train()
+    losses = []
+    for train_data, target in tqdm(train_loader):
+        train_data, target = train_data.to(device), target.to(device)
+
+        data = stft(train_data).unsqueeze(dim=1)
+        real, imag = data[..., 0], data[..., 1]
+        out_real, out_imag = model(real, imag)
+        out_real, out_imag = torch.squeeze(out_real, 1), torch.squeeze(out_imag, 1)
+        output = istft(out_real, out_imag, train_data.size(1))
+        output = torch.squeeze(output, dim=1)
+
+        loss = wSDRLoss(train_data, target, output)
+        optimizer.zero_grad()
+        loss.backward()
+        optimizer.step()
+
+        losses.append(loss.item())
+
+    return losses
+
+
+
+def main():
+    args = get_args()
 
     torch.manual_seed(args.seed)
 
-    train_kwargs = {'batch_size': args.batch_size}
-    test_kwargs = {'batch_size': args.test_batch_size}
-
-    device = None
+    device = torch.device("cpu")
     if args.device != -1:
         device = torch.device(args.device)
-        cuda_kwargs = {'num_workers': 1,
-                       'pin_memory': True,
-                       'shuffle': True}
-        train_kwargs.update(cuda_kwargs)
-        test_kwargs.update(cuda_kwargs)
-    else:
-        device = torch.device("cpu")
 
     #### load file list
     f = open(args.dataset_path, 'rb')
@@ -158,18 +150,15 @@ def main():
         train_file_list = train_file_list + value
     train_file_list = train_file_list[:1000]
 
-    train_kwargs["file_list"] = train_file_list
     train_set = RfDataset(args, train_file_list)
     train_loader = torch.utils.data.DataLoader(dataset=train_set, batch_size=args.batch_size, shuffle=True,
                                                num_workers=4)
 
-    train_kwargs["file_list"] = test_file_list
     test_set = RfDataset(args, test_file_list)
     test_loader = torch.utils.data.DataLoader(dataset=test_set, batch_size=args.batch_size, shuffle=True, num_workers=4)
 
     params = utils.Params(args.model_path)
-    Net = Unet(params.model)
-    model = Net.to(device)
+    model = Unet(params.model).to(device)
 
     optimizer = optim.Adam(model.parameters(), lr=args.lr)
 

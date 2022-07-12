@@ -1,7 +1,7 @@
 from tqdm import tqdm
 import torch
 import sac
-
+import numpy as np
 
 class RfDataset(torch.utils.data.Dataset):
 
@@ -39,10 +39,15 @@ class RfDataset(torch.utils.data.Dataset):
         self.length = len(self.dataset["rf"])
 
     def __getitem__(self, idx):
-        z_cmp = torch.from_numpy(self.dataset['z_cmp'][idx]).type(torch.FloatTensor)
-        rf = torch.from_numpy(self.dataset['rf'][idx]).type(torch.FloatTensor)
+        z=self.dataset['z_cmp'][idx]
+        z_normed=(z-np.mean(z))/np.sum(z*z)
+        z_normed = torch.from_numpy(z_normed).type(torch.FloatTensor)
 
-        return z_cmp, rf
+        rf = self.dataset['rf'][idx]
+        rf_normed = (rf - np.mean(rf)) / np.sum(rf * rf)
+        rf_normed = torch.from_numpy(rf_normed).type(torch.FloatTensor)
+
+        return z_normed, rf_normed
 
     def __len__(self):
         return self.length
